@@ -1,6 +1,9 @@
 import express from "express";
 import mysql from "mysql";
 import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+dotenv.config();
 const app = express();
 
 app.use(express.json())
@@ -109,7 +112,15 @@ console.log("Email count:", result[0].count);
       console.log(err);
       return res.status(500).json({ error: err.sqlMessage });
     } else {
-          res.status(200).send("User registered successfully");
+        const token = jwt.sign({
+          id: user.id,
+          username: user.username,
+          email: user.email
+         },
+         process.env.JWT_SECRET,
+         { expiresIn: "1h" }
+        );
+          res.status(200).send({message:"User registered successfully", token: token});
         }
       });
     });
@@ -126,9 +137,9 @@ console.log("Email count:", result[0].count);
     return res.status(400).json({ error: "Invalid JSON format." });
   }
 
-   const {username, email, password } = req.body;
+   const {identifier, password } = req.body;
   const errors = [];
-  if (!username || !email) {
+  if (!identifier) {
     errors.push("username or email are required.");
   }
   if (!password) {
@@ -138,29 +149,29 @@ console.log("Email count:", result[0].count);
   if (errors.length > 0) {
     return res.status(400).json({ errors: errors });
   }
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email format" });
-  }
+
+
+
   if (password.length < 6) {
       return res
         .status(400)
         .json({ error: "Password must be at least 6 characters" });
     }
-  if (username.length < 3) {
-      return res
-        .status(400)
-        .json({ error: "Username must be at least 3 characters" });
-    }
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmail = emailRegex.test(identifier);
 
-    const query = "SELECT * FROM users WHERE email = ? OR username = ?";
-    db.query(query, [email,username], async (err, result) => {
+  const query = isEmail //is email hye l condition
+    ? "SELECT * FROM users WHERE email = ?" //haydi mtl if true
+    : "SELECT * FROM users WHERE username = ?";// if false 
+
+   
+    db.query(query, [identifier], async (err, result) => {
       if (err) {
         console.error(err);
         return res.status(500).json({ error: "Database error" });
       }
       if (result.length === 0) {
-        return res.status(401).json({ error: "Invalid email or password" });//401 not 404 krml l security 
+        return res.status(401).json({ error: "Invalid credentials" });//401 not 404 krml l security 
       }
      
       const user = result[0];
@@ -170,8 +181,17 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
      const isPasswordValid = await bcrypt.compare(password, user.hashedPassword); 
       console.log("Password is valid?", isPasswordValid);
       if (!isPasswordValid) {
-        return res.status(401).json({ error: "Invalid email or password" });
+        return res.status(401).json({ error: "Invalid credentials" });
       }
-      res.status(200).json({ message: "Login successful", user });
+      const token = jwt.sign(
+        {
+         id: user.id,
+         username: user.username,
+         email: user.email
+         },
+        process.env.JWT_SECRET,
+       { expiresIn: "1h" }
+      );
+      res.status(200).json({ message: "Login successful", token: token  });
     });
   });
