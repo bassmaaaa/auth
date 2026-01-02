@@ -21,6 +21,16 @@ const db = mysql.createConnection({
   password:"",
   database:"auth",
 });
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (token == null) return res.sendStatus(401);
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+}
 function isValidJSON(text) {
   if (typeof text !== "string") {
     return false; // JSON input must be a string
@@ -112,15 +122,7 @@ console.log("Email count:", result[0].count);
       console.log(err);
       return res.status(500).json({ error: err.sqlMessage });
     } else {
-        const token = jwt.sign({
-          id: user.id,
-          username: user.username,
-          email: user.email
-         },
-         process.env.JWT_SECRET,
-         { expiresIn: "1h" }
-        );
-          res.status(200).send({message:"User registered successfully", token: token});
+          res.status(200).send({message:"User registered successfully"});
         }
       });
     });
@@ -128,7 +130,7 @@ console.log("Email count:", result[0].count);
    });
 
 
-   app.post('/login', (req, res) => {{}
+   app.post('/login', (req, res) => {
     if (!req.body) {
     return res.status(400).json({ error: "Request body is missing." });
   }
@@ -195,3 +197,126 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       res.status(200).json({ message: "Login successful", token: token  });
     });
   });
+
+  app.get("/profile", authenticateToken, (req, res) => {
+    const query = "SELECT id, username FROM users WHERE id = ?";
+    db.query(query, [req.user.id], (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Database error" });
+      }
+      if (result.length === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      res.status(200).json({ user: result[0] });
+    });
+  });
+
+
+  app.put("/updateprofile", authenticateToken, (req, res) => {
+    if (!req.body) {
+    return res.status(400).json({ error: "Request body is missing." });
+  }
+   if (!isValidJSON(JSON.stringify(req.body))) {
+    return res.status(400).json({ error: "Invalid JSON format." });
+  }
+    const userId = req.id;
+    const { username, email, phone } = req.body;
+     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Invalid email format" });
+  }
+  if (username.length < 3) {
+      return res
+        .status(400)
+        .json({ error: "Username must be at least 3 characters" });
+    }
+    
+ const emailCountQuery ="SELECT COUNT(*) AS count FROM users WHERE email = ?";
+  db.query(emailCountQuery, [email], (err, result) => {
+  if (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Database error" });
+  }
+  if ( result[0].count >= 3) {
+    return res.status(400).json({ error: "This email has reached the maximum number of accounts" });
+  }
+  const checkuserQuery =
+      "SELECT id FROM users WHERE username = ? AND id != ?";//krml y3ml check iza  fi user bl data base mtl l updated user yli be3tinu bl req
+    db.query(checkuserQuery, [username, userId], async (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Database error" });
+      }
+
+      if (result.length > 0) {
+        return res
+          .status(404)
+          .json({ error: "username already exists" });
+      }
+
+    const query = "UPDATE users SET username = ?, email = ?, Phone = ? WHERE id = ?";
+    db.query(query, [username, email, phone, req.user.id], (err, result) => {
+     
+    if (err) {
+        if (err.code === "ER_DUP_ENTRY") {
+        return res.status(400).json({ error: err.sqlMessage });
+      }
+      }
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+        res.status(200).json({ message: "Profile updated successfully" });
+      });
+    });
+    });
+  });
+
+
+  app.post("/forgotpassword", (req, res) => {//sta3malna post msh put laan 3m n3ml action (create mn jdid)
+    
+    const {identifier, newpassword } = req.body;
+     const errors = [];
+  if (!identifier) {
+    errors.push("username or email are required.");
+  }
+  if (!newpassword) {
+    errors.push("Password is required.");
+  }
+
+  if (errors.length > 0) {
+    return res.status(400).json({ errors: errors });
+  }
+
+
+
+  if (newpassword.length < 6) {
+      return res
+        .status(400)
+        .json({ error: "Password must be at least 6 characters" });
+    }
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmail = emailRegex.test(identifier);
+
+  const query = isEmail //is email hye l condition
+    ? "SELECT * FROM users WHERE email = ?" //haydi mtl if true
+    : "SELECT * FROM users WHERE username = ?";// if false 
+
+    db.query(query, [identifier], (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Database error" });
+      }
+      if (result.length === 0) {
+        return res.status(404).json({ error: "credentials not found" });
+      }
+    
+      const resetToken = jwt.sign(
+        { id: result[0].id },
+        process.env.JWT_SECRET,
+        { expiresIn: "1h" }
+      );
+      res.status(200).json({ message: "Password reset link sent", token: resetToken });
+    });
+  });
+  //bhyda l api 3ndi mshkle enu iza l email 3le aktar mn user rah yghyr lal kl 
