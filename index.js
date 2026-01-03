@@ -21,10 +21,18 @@ app.listen(PORT, () => {
 });
 
 const db = mysql.createConnection({
-  host:"localhost",
-  user:"root",
-  password:"",
-  database:"auth",
+  host: process.env.MYSQLHOST,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQL_ROOT_PASSWORD,
+  database: process.env.MYSQL_DATABASE,
+  port: process.env.MYSQLPORT
+});
+db.connect(err => {
+  if (err) {
+    console.error("MySQL connection error:", err);
+  } else {
+    console.log("MySQL connected successfully!");
+  }
 });
 function authenticateToken(req, res, next) {
   const authHeader = req.headers["authorization"];
@@ -310,7 +318,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     db.query(query, [identifier], (err, result) => {
       if (err) {
         console.error(err);
-        return res.status(500).json({ error: "Database error" });
+        return res.status(500).json({ message: console.error(err) });
       }
       if (result.length === 0) {
         return res.status(404).json({ error: "credentials not found" });
