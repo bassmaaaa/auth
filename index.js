@@ -3,7 +3,9 @@ import mysql from "mysql2";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-dotenv.config();
+if (process.env.RAILWAY_ENV !== 'production') {
+  dotenv.config();
+}
 const app = express();
 
 app.use(express.json())
@@ -15,6 +17,8 @@ app.get('/', (req, res) => {
 //app.listen(5000,()=>{
  //   console.log("Server is running on port 5000")
 //})
+console.log("MYSQLHOST:", process.env.MYSQLHOST);
+
 const PORT = process.env.PORT || 3306;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
