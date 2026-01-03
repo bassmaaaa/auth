@@ -312,7 +312,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     db.query(query, [identifier], (err, result) => {
       if (err) {
         console.error(err);
-        return res.status(500).json({ message: console.error(err) });
+        return res.status(500).json({ message: "Database err" });
       }
       if (result.length === 0) {
         return res.status(404).json({ error: "credentials not found" });
