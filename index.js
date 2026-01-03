@@ -15,12 +15,19 @@ app.get('/', (req, res) => {
 //app.listen(5000,()=>{
  //   console.log("Server is running on port 5000")
 //})
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-const db = mysql.createConnection(process.env.MYSQL_URL);
+const db = mysql.createConnection({
+  host: process.env.MYSQLHOST,
+  port: process.env.MYSQLPORT,
+  user: process.env.MYSQLUSER,
+  password: process.env.MYSQLPASSWORD,
+  database: process.env.MYSQLDATABASE
+});
+
 db.connect(err => {
   if (err) {
     console.error("MySQL connection error:", err);
